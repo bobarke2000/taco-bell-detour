@@ -211,10 +211,18 @@
         placesService.nearbySearch({
         location: midPoint,
         radius: 5000,
-        name: "Taco Bell"
+        keyword: "Taco Bell"
         }, (midResults, status) => {
         if (status === google.maps.places.PlacesServiceStatus.OK && midResults.length > 0) {
-            routeViaTacoBell(midResults[0]);
+            const filteredResults = midResults.filter(place =>
+            place.name.toLowerCase().includes("taco bell")
+            );
+
+            if (filteredResults.length > 0) {
+            routeViaTacoBell(filteredResults[0]);
+            } else {
+            searchAlongRoute(overviewPath, midPoint, placesService, routeViaTacoBell);
+            }
         } else {
             searchAlongRoute(overviewPath, midPoint, placesService, routeViaTacoBell);
         }
@@ -234,8 +242,12 @@
             name: "Taco Bell"
             }, (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
-                tacoBellResults = tacoBellResults.concat(results);
+            const filtered = results.filter(place =>
+                place.name.toLowerCase().includes("taco bell")
+            );
+            tacoBellResults = tacoBellResults.concat(filtered);
             }
+
             searchesRemaining--;
             if (searchesRemaining === 0) {
                 if (tacoBellResults.length === 0) {
