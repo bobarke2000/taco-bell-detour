@@ -3,19 +3,9 @@
   <head>
     <title>Taco Bell Detour</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script>
-    fetch('/api/maps-key')
-    .then(res => res.json())
-    .then(data => {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry`;
-        script.onload = initMap;
-        document.head.appendChild(script);
-    });
-    </script>
     <style>
         body {
-        font-family: sans-serif;
+        font-family: sans-serif; /* comment */
         margin: 0;
         background-color: white;
         }
@@ -33,7 +23,7 @@
         }
         
         .header img {
-        opacity: 1;
+        opacity: 1; /* or adjust based on your design */
         width: 70px;       /* or adjust based on your design */
         height: 70px;      /* keep it square */
         object-fit: contain;
@@ -90,6 +80,7 @@
         margin-bottom: 2em;
         }
         
+        
         /* Mobile-specific styles */
         @media (max-width: 768px) {
         .header h1 {
@@ -127,6 +118,7 @@
 
     <form id="directionsForm" style="display: flex; gap: 10px; flex-wrap: wrap;">
     <input id="start" type="search" placeholder="Start location" required />
+    <button type="button" id="useCurrentLocation">Use Current Location</button>
     <input id="end" type="search" placeholder="End location" required />
     <button type="submit">Get Directions</button>
     </form>
@@ -134,7 +126,7 @@
     <div id="map"></div>
     </div>
 
-<script>
+    <script>
     let map, directionsService, directionsRenderer, tacoBellInfoWindow;
     let markers = [];
 
@@ -148,7 +140,6 @@
     directionsRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: true });
     directionsRenderer.setMap(map);
 
-    // ✅ Add autocomplete to inputs
     const startInput = document.getElementById("start");
     const endInput = document.getElementById("end");
     new google.maps.places.Autocomplete(startInput);
@@ -158,208 +149,204 @@
         e.preventDefault();
         getDirections();
     });
+
+    document.getElementById("useCurrentLocation").addEventListener("click", () => {
+        if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const geocoder = new google.maps.Geocoder();
+            const latlng = { lat, lng };
+
+            geocoder.geocode({ location: latlng }, (results, status) => {
+                if (status === "OK" && results[0]) {
+                document.getElementById("start").value = results[0].formatted_address;
+                } else {
+                alert("Geocoder failed to find address.");
+                }
+            });
+            },
+            () => alert("Failed to get your location.")
+        );
+        } else {
+        alert("Geolocation is not supported by this browser.");
+        }
+    });
     }
 
     function clearMarkers() {
-        markers.forEach(marker => marker.setMap(null));
-        markers = [];
-        document.getElementById("openInMaps").style.display = "none";
+    markers.forEach(marker => marker.setMap(null));
+    markers = [];
+    document.getElementById("openInMaps").style.display = "none";
     }
 
     function getDirections() {
-        clearMarkers();
+    clearMarkers();
 
-        const start = document.getElementById("start").value;
-        const end = document.getElementById("end").value;
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
 
-        directionsService.route({
-            origin: start,
-            destination: end,
-            travelMode: google.maps.TravelMode.DRIVING,
-        }, (initialResponse, status) => {
-            if (status !== "OK") return alert("Failed to get initial route.");
+    directionsService.route({
+        origin: start,
+        destination: end,
+        travelMode: google.maps.TravelMode.DRIVING,
+    }, (initialResponse, status) => {
+        if (status !== "OK") return alert("Failed to get initial route.");
 
-            const route = initialResponse.routes[0];
-            const overviewPath = route.overview_path;
-            const placesService = new google.maps.places.PlacesService(map);
-            const midPoint = overviewPath[Math.floor(overviewPath.length / 2)];
+        const route = initialResponse.routes[0];
+        const overviewPath = route.overview_path;
+        const placesService = new google.maps.places.PlacesService(map);
+        const midPoint = overviewPath[Math.floor(overviewPath.length / 2)];
 
-            // Try midpoint first
+        // First attempt: find Taco Bell near midpoint
+        placesService.nearbySearch({
+        location: midPoint,
+        radius: 5000,
+        name: "Taco Bell"
+        }, (midResults, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && midResults.length > 0) {
+            routeViaTacoBell(midResults[0]);
+        } else {
+            searchAlongRoute(overviewPath, midPoint, placesService, routeViaTacoBell);
+        }
+        });
+
+        function searchAlongRoute(path, midPoint, placesService, callback) {
+        const searchInterval = 5;
+        const radiusMeters = 2500;
+        let tacoBellResults = [];
+        let searchesRemaining = 0;
+
+        for (let i = 0; i < path.length; i += searchInterval) {
+            searchesRemaining++;
             placesService.nearbySearch({
-                location: midPoint,
-                radius: 5000,
-                name: "Taco Bell"
-            }, (midResults, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK && midResults.length > 0) {
-                    routeViaTacoBell(midResults[0]);
-                } else {
-                    // Fallback: search along the route
-                    searchAlongRoute(overviewPath, midPoint, placesService, routeViaTacoBell);
-                }
-            });
-
-            function searchAlongRoute(path, midPoint, placesService, callback) {
-                const searchInterval = 5;
-                const radiusMeters = 2500;
-                let tacoBellResults = [];
-                let searchesRemaining = 0;
-
-                for (let i = 0; i < path.length; i += searchInterval) {
-                    searchesRemaining++;
-                    placesService.nearbySearch({
-                        location: path[i],
-                        radius: radiusMeters,
-                        name: "Taco Bell"
-                    }, (results, status) => {
-                        if (status === google.maps.places.PlacesServiceStatus.OK) {
-                            tacoBellResults = tacoBellResults.concat(results);
-                        }
-                        searchesRemaining--;
-                        if (searchesRemaining === 0) {
-                            if (tacoBellResults.length === 0) {
-                                alert("No Taco Bell found along the route.");
-                                return;
-                            }
-                            // ✅ Sort by distance from midpoint instead of start
-                            tacoBellResults.sort((a, b) => {
-                                const distA = google.maps.geometry.spherical.computeDistanceBetween(a.geometry.location, midPoint);
-                                const distB = google.maps.geometry.spherical.computeDistanceBetween(b.geometry.location, midPoint);
-                                return distA - distB;
-                            });
-                            callback(tacoBellResults[0]);
-                        }
-                    });
-                }
+            location: path[i],
+            radius: radiusMeters,
+            name: "Taco Bell"
+            }, (results, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                tacoBellResults = tacoBellResults.concat(results);
             }
+            searchesRemaining--;
+            if (searchesRemaining === 0) {
+                if (tacoBellResults.length === 0) {
+                alert("No Taco Bell found along the route.");
+                return;
+                }
+                tacoBellResults.sort((a, b) => {
+                const distA = google.maps.geometry.spherical.computeDistanceBetween(a.geometry.location, midPoint);
+                const distB = google.maps.geometry.spherical.computeDistanceBetween(b.geometry.location, midPoint);
+                return distA - distB;
+                });
+                callback(tacoBellResults[0]);
+            }
+            });
+        }
+        }
 
         function routeViaTacoBell(tacoBellPlace) {
-            const tacoBellLoc = tacoBellPlace.geometry.location;
+        const tacoBellLoc = tacoBellPlace.geometry.location;
 
-            placesService.getDetails({
+        placesService.getDetails({
             placeId: tacoBellPlace.place_id,
             fields: ['name', 'formatted_address', 'photos', 'url', 'geometry']
-            }, (place, status) => {
+        }, (place, status) => {
             if (status !== google.maps.places.PlacesServiceStatus.OK) return;
 
             directionsService.route({
-                origin: start,
-                destination: end,
-                waypoints: [{ location: tacoBellLoc, stopover: true }],
-                travelMode: google.maps.TravelMode.DRIVING
+            origin: start,
+            destination: end,
+            waypoints: [{ location: tacoBellLoc, stopover: true }],
+            travelMode: google.maps.TravelMode.DRIVING
             }, (finalResponse, status) => {
-                if (status !== "OK") return;
+            if (status !== "OK") return;
 
-                directionsRenderer.setDirections(finalResponse);
-                const legs = finalResponse.routes[0].legs;
+            directionsRenderer.setDirections(finalResponse);
+            const legs = finalResponse.routes[0].legs;
 
-                const startMarker = new google.maps.Marker({
+            markers.push(new google.maps.Marker({
                 position: legs[0].start_location,
                 map: map,
                 title: "Start",
                 icon: {
-                    url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-                    scaledSize: new google.maps.Size(32, 32),
-                    origin: new google.maps.Point(0, 0),
-                    anchor: new google.maps.Point(16, 32)
+                url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                scaledSize: new google.maps.Size(32, 32),
+                anchor: new google.maps.Point(16, 32)
                 }
-                });
-                markers.push(startMarker);
+            }));
 
-                const endMarker = new google.maps.Marker({
+            markers.push(new google.maps.Marker({
                 position: legs[legs.length - 1].end_location,
                 map: map,
                 title: "Destination",
                 icon: {
-                    url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                    scaledSize: new google.maps.Size(32, 32),
-                    origin: new google.maps.Point(0, 0),
-                    anchor: new google.maps.Point(16, 32)
+                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                scaledSize: new google.maps.Size(32, 32),
+                anchor: new google.maps.Point(16, 32)
                 }
-                });
-                markers.push(endMarker);
+            }));
 
-                const fallbackUrl = "https://static.wixstatic.com/media/8d9d58_f183d2dd11c34195a628b9353ef43892~mv2.png";
-                const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 250 }) || fallbackUrl;
+            const fallbackUrl = "https://static.wixstatic.com/media/8d9d58_f183d2dd11c34195a628b9353ef43892~mv2.png";
+            const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 250 }) || fallbackUrl;
 
-                const tacoBellMarker = new google.maps.Marker({
+            const tacoBellMarker = new google.maps.Marker({
                 position: tacoBellLoc,
                 map: map,
                 title: place.name,
                 icon: {
-                    url: 'https://static.wixstatic.com/media/8d9d58_f183d2dd11c34195a628b9353ef43892~mv2.png',
-                    scaledSize: new google.maps.Size(30, 40),
-                    origin: new google.maps.Point(0, 0),
-                    anchor: new google.maps.Point(20, 40)
+                url: fallbackUrl,
+                scaledSize: new google.maps.Size(30, 40),
+                anchor: new google.maps.Point(20, 40)
                 }
-                });
-                markers.push(tacoBellMarker);
+            });
+            markers.push(tacoBellMarker);
 
-                tacoBellInfoWindow = new google.maps.InfoWindow({
+            tacoBellInfoWindow = new google.maps.InfoWindow({
                 content: `
-                    <div style="max-width: 250px">
-                    <h3>${place.name}</h3>
-                    <img src="${photoUrl}" alt="${place.name}" style="width: 100%; border-radius: 8px;" />
-                    <p>${place.formatted_address}</p>
-                    <a href="${place.url}" target="_blank">View on Google Maps</a>
-                    </div>
+                <div style="max-width: 250px">
+                <h3>${place.name}</h3>
+                <img src="${photoUrl}" alt="${place.name}" style="width: 100%; border-radius: 8px;" />
+                <p>${place.formatted_address}</p>
+                <a href="${place.url}" target="_blank">View on Google Maps</a>
+                </div>
                 `
-                });
+            });
 
-                tacoBellMarker.addListener("click", () => {
+            tacoBellMarker.addListener("click", () => {
                 tacoBellInfoWindow.open(map, tacoBellMarker);
-                });
+            });
 
-                const mapsBtn = document.getElementById("openInMaps");
-                const encodedStart = encodeURIComponent(start);
-                const encodedEnd = encodeURIComponent(end);
-                const encodedWaypoint = encodeURIComponent(tacoBellLoc.lat() + "," + tacoBellLoc.lng());
+            const mapsBtn = document.getElementById("openInMaps");
+            const encodedStart = encodeURIComponent(start);
+            const encodedEnd = encodeURIComponent(end);
+            const encodedWaypoint = encodeURIComponent(`${tacoBellLoc.lat()},${tacoBellLoc.lng()}`);
 
-                mapsBtn.onclick = () => {
+            mapsBtn.onclick = () => {
                 const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodedStart}&destination=${encodedEnd}&waypoints=${encodedWaypoint}&travelmode=driving`;
                 window.open(mapsUrl, "_blank");
-                };
+            };
 
-                mapsBtn.style.display = "inline-block";
+            mapsBtn.style.display = "inline-block";
             });
-            });
-        }
-
-        function searchAlongRoute(path, origin, placesService, callback) {
-            const searchInterval = 5;
-            const radiusMeters = 2500;
-            let tacoBellResults = [];
-            let searchesRemaining = 0;
-
-            for (let i = 0; i < path.length; i += searchInterval) {
-            searchesRemaining++;
-            placesService.nearbySearch({
-                location: path[i],
-                radius: radiusMeters,
-                name: "Taco Bell"
-            }, (results, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK) {
-                tacoBellResults = tacoBellResults.concat(results);
-                }
-                searchesRemaining--;
-                if (searchesRemaining === 0) {
-                if (tacoBellResults.length === 0) {
-                    alert("No Taco Bell found along the route.");
-                    return;
-                }
-                tacoBellResults.sort((a, b) => {
-                    const distA = google.maps.geometry.spherical.computeDistanceBetween(a.geometry.location, origin);
-                    const distB = google.maps.geometry.spherical.computeDistanceBetween(b.geometry.location, origin);
-                    return distA - distB;
-                });
-                callback(tacoBellResults[0]);
-                }
-            });
-            }
-        }
         });
+        }
+    });
     }
-
-    window.onload = initMap;
     </script>
+
+    <script>
+    fetch('/api/maps-key')
+        .then(res => res.json())
+        .then(data => {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry`;
+        script.onload = initMap;
+        document.head.appendChild(script);
+        })
+        .catch(() => alert("Failed to load Google Maps API key."));
+    </script>
+
+
   </body>
 </html>
