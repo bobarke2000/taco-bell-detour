@@ -268,48 +268,57 @@
         }
 
         function findNearestTacoBellAnywhere(start, end, callback) {
-        const geocoder = new google.maps.Geocoder();
+            const geocoder = new google.maps.Geocoder();
 
-        geocoder.geocode({ address: start }, (startResults, status1) => {
-            if (status1 !== "OK" || !startResults[0]) {
-            alert("Failed to geocode start location.");
-            return;
-            }
-
-            geocoder.geocode({ address: end }, (endResults, status2) => {
-            if (status2 !== "OK" || !endResults[0]) {
-                alert("Failed to geocode end location.");
+            geocoder.geocode({ address: start }, (startResults, status1) => {
+                if (status1 !== "OK" || !startResults[0]) {
+                alert("Failed to geocode start location.");
                 return;
+                }
+
+                geocoder.geocode({ address: end }, (endResults, status2) => {
+                if (status2 !== "OK" || !endResults[0]) {
+                    alert("Failed to geocode end location.");
+                    return;
+                }
+
+                const startLatLng = startResults[0].geometry.location;
+                const endLatLng = endResults[0].geometry.location;
+                const placesService = new google.maps.places.PlacesService(map);
+
+                // helper search function
+                function searchAround(location, label, next) {
+                    placesService.nearbySearch({
+                    location,
+                    radius: 50000,
+                    keyword: "Taco Bell"
+                    }, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        const filtered = results.filter(place =>
+                        place.name.toLowerCase().includes("taco bell")
+                        );
+                        if (filtered.length > 0) {
+                        callback(filtered[0]);
+                        } else {
+                        next(); // fallback to next location
+                        }
+                    } else {
+                        next(); // fallback if status not OK
+                    }
+                    });
+                }
+
+                // Try origin first, then destination
+                searchAround(startLatLng, "origin", () => {
+                    searchAround(endLatLng, "destination", () => {
+                    alert("No Taco Bells found within 50km of start or end.");
+                    });
+                });
+                });
+            });
             }
 
-            const startLatLng = startResults[0].geometry.location;
-            const endLatLng = endResults[0].geometry.location;
 
-            const midpoint = google.maps.geometry.spherical.interpolate(startLatLng, endLatLng, 0.5);
-            const placesService = new google.maps.places.PlacesService(map);
-
-            placesService.nearbySearch({
-                location: midpoint,
-                radius: 50000, // 50km
-                keyword: "Taco Bell"
-            }, (results, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK) {
-                const filtered = results.filter(place =>
-                    place.name.toLowerCase().includes("taco bell")
-                );
-
-                if (filtered.length > 0) {
-                    callback(filtered[0]);
-                } else {
-                    alert("No Taco Bells found anywhere nearby.");
-                }
-                } else {
-                alert("Failed to search for Taco Bells.");
-                }
-            });
-            });
-        });
-        }
         function routeViaTacoBell(tacoBellPlace) {
         const tacoBellLoc = tacoBellPlace.geometry.location;
 
