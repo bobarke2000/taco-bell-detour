@@ -422,6 +422,21 @@
         .catch(() => alert("Failed to load Google Maps API key."));
     </script>
 
+    <footer style="font-size: 0.75rem; color: #555; padding: 2em 1em; max-width: 700px; margin: 0 auto;">
+    <hr style="margin-bottom: 1em;" />
+    <p><strong>Taco Bell Detour</strong> is a web-based application that modifies driving directions to include a stop at a nearby Taco Bell restaurant. The app uses the Google Maps Directions and Places APIs to determine suitable detour points based on your origin and destination.</p>
+    
+    <p>The app searches in three stages:</p>
+    <ul style="margin-top: 0;">
+        <li><strong>Midpoint Search:</strong> Checks the halfway point of the route for Taco Bells within 5km.</li>
+        <li><strong>Route-Based Search:</strong> If none are found, it checks every few kilometers along the route for Taco Bells within 2.5km.</li>
+        <li><strong>Fallback Search:</strong> Still nothing? It searches within 50km of the start, then the destination.</li>
+    </ul>
+
+    <p>If a Taco Bell is found, it's added as a stop along your route. You get updated directions—and a handy button to open the new path in Google Maps.</p>
+
+    <p>Code available on GitHub: <a href="https://github.com/bobarke2000/taco-bell-detour" target="_blank">github.com/bobarke2000/taco-bell-detour</a></p>
+    </footer>
 
   </body>
 </html>
